@@ -1,6 +1,5 @@
 from scipy.spatial.distance import euclidean
-from imutils import perspective
-from imutils import contours
+from imutils import perspective, contours
 import numpy as np
 import imutils
 import cv2
@@ -41,14 +40,11 @@ cnts = [x for x in cnts if cv2.contourArea(x) > 100]
 # Reference object dimensions
 # Here, for reference, I have used a 2cm x 2cm square
 ref_object = cnts[0]
-box = cv2.minAreaRect(ref_object)
-box = cv2.boxPoints(box)
-box = np.array(box, dtype="int")
-box = perspective.order_points(box)
-(tl, tr, br, bl) = box
-dist_in_pixel = euclidean(tl, tr)
+ellipse = cv2.fitEllipse(ref_object)
+major_axis, minor_axis = max(ellipse[1]), min(ellipse[1])
+dist_in_pixel = major_axis
 dist_in_cm = 2.5
-pixel_per_cm = dist_in_pixel/dist_in_cm
+pixel_per_cm = dist_in_pixel / dist_in_cm
 
 # Counter variable to keep track of the number of objects
 object_count = 0
@@ -57,25 +53,26 @@ total_width = 0
 
 # Draw remaining contours and count objects
 for cnt in cnts[1:]:  # Skip the reference object
-    box = cv2.minAreaRect(cnt)
-    box = cv2.boxPoints(box)
-    box = np.array(box, dtype="int")
-    box = perspective.order_points(box)
-    (tl, tr, br, bl) = box
+    ellipse = cv2.fitEllipse(cnt)
+    major_axis, minor_axis = max(ellipse[1]), min(ellipse[1])
 
     # Check if contour area is large enough to be considered as an object
     if cv2.contourArea(cnt) > 100:
         # Increment the object count
         object_count += 1
 
-        cv2.drawContours(image, [box.astype("int")], -1, (0, 0, 255), 2)
-        mid_pt_horizontal = (tl[0] + int(abs(tr[0] - tl[0]) / 2), tl[1] + int(abs(tr[1] - tl[1]) / 2))
-        mid_pt_verticle = (tr[0] + int(abs(tr[0] - br[0]) / 2), tr[1] + int(abs(tr[1] - br[1]) / 2))
-        wid = euclidean(tl, tr) / pixel_per_cm
-        ht = euclidean(tr, br) / pixel_per_cm
+        # Draw ellipse and annotations
+        cv2.ellipse(image, ellipse, (0, 0, 255), 2)
+
+        mid_pt_horizontal = (int(ellipse[0][0] - minor_axis / 2), int(ellipse[0][1]))
+        mid_pt_verticle = (int(ellipse[0][0]), int(ellipse[0][1] - major_axis / 2))
+        wid = major_axis / pixel_per_cm
+        ht = minor_axis / pixel_per_cm
         total_length += wid
         total_width += ht
-        cv2.putText(image, "{:.1f}cm".format(wid), (int(mid_pt_horizontal[0] - 15), int(mid_pt_horizontal[1] - 10)),
+
+        cv2.putText(image, "{:.1f}cm".format(wid),
+                    (int(mid_pt_horizontal[0] - 15), int(mid_pt_horizontal[1] - 10)),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2, cv2.LINE_AA)
         cv2.putText(image, "{:.1f}cm".format(ht), (int(mid_pt_verticle[0] + 10), int(mid_pt_verticle[1])),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 0), 2, cv2.LINE_AA)
